@@ -1,0 +1,33 @@
+# .github/workflows/ci.yml
+name: VaultMind CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify imports
+        run: |
+          python -c "from app.config import settings; print('✅ Config OK')"
+          python -c "from app.state import RAGState; print('✅ State OK')"
+          python -c "from app.nodes import retrieve_node, generate_node; print('✅ Nodes OK')"
+          python -c "from app.graph import rag_graph; print('✅ Graph OK')"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
