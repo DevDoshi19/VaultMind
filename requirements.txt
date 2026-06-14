@@ -22,3 +22,6 @@ tenacity
 
 # Phase 8 — evaluation
 ragas
+
+# Phase 7 - BM25
+rank_bm25

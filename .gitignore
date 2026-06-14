@@ -7,8 +7,9 @@ __pycache__/
 # ChromaDB local data
 chroma_db/
 
-# Resume (private)
+# Private resume data
 data/resume.pdf
+data/chunks.json
 
 # Private readme folder
 _readme/

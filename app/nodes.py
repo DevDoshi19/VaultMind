@@ -1,5 +1,5 @@
 import tiktoken
-
+import json
 from rich.console import Console
 from rich import print
 
@@ -7,6 +7,7 @@ from langchain_chroma import Chroma
 # from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from rank_bm25 import BM25Okapi
 
 from openai import APIError, RateLimitError
 from tenacity import (
@@ -37,40 +38,100 @@ def get_vectorstore() -> Chroma:
         persist_directory=settings.chroma_persist_dir,
     )
 
+def load_bm25():
+    with open("./data/chunks.json", "r") as f:
+        data = json.load(f)
+
+    corpus = [item["content"] for item in data]
+    tokenized = [doc.lower().split() for doc in corpus]
+    bm25 = BM25Okapi(tokenized)
+
+    return bm25, corpus
+
+
+def rrf_merge(semantic_docs: list, bm25_docs: list, k: int = 60) -> list:
+    """
+    Reciprocal Rank Fusion.
+    Merges two ranked lists, boosts chunks appearing in both.
+    """
+    scores = {}
+
+    for rank, doc in enumerate(semantic_docs):
+        scores[doc] = scores.get(doc, 0) + 1 / (rank + k)
+
+    for rank, doc in enumerate(bm25_docs):
+        scores[doc] = scores.get(doc, 0) + 1 / (rank + k)
+
+    # sort by combined score descending
+    merged = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return [doc for doc, _ in merged]
+
+
 def retrieve_node(state: RAGState) -> RAGState:
+    console.print("\n[cyan]🔍 Hybrid Retrieving...[/cyan]")
+
+    question = state["question"]
+
+    # ── Semantic Search ────────────────────────────────────
     vectorstore = get_vectorstore()
-    console.print(f"[cyan]🔍 Retrieving from ChromaDB...[/cyan]")  # noqa: F541
-    results = vectorstore.similarity_search_with_score(
-        state["question"],
+    semantic_results = vectorstore.similarity_search_with_score(
+        question,
         k=settings.retrieval_k,
     )
-    """ Resume questions  → scores around 1.0 - 1.5   ← relevant
-        Unrelated topics  → scores around 1.7 - 2.0+  ← irrelevant
-    """
-    THRESHOLD  = 1.6
-    filtered = [(doc,score) for doc,score in results if score < THRESHOLD]
-    for doc, score in results:
-        console.print(f"   [yellow]score: {score:.4f}[/yellow] | {doc.page_content[:60]}")
 
-    console.print(f"   Raw: [white]{len(results)}[/white] chunks | After filter: [green]{len(filtered)}[/green] chunks (threshold={THRESHOLD})")
-    # print(f"   After filter: {len(filtered)} chunks (threshold={THRESHOLD})")
+    # print scores for visibility
+    for doc, score in semantic_results:
+        console.print(f"   [dim]semantic score: {score:.4f} | {doc.page_content[:50]}[/dim]")
 
-    if not filtered:
-        print("   ⚠️ No relevant chunks found")
+    # filter by threshold
+    semantic_docs = [
+        doc.page_content
+        for doc, score in semantic_results
+        if score < 1.6
+    ]
+
+    # ── BM25 Keyword Search ────────────────────────────────
+    bm25, corpus = load_bm25()
+    tokenized_query = question.lower().split()
+    bm25_scores = bm25.get_scores(tokenized_query)
+
+    # get top-K BM25 results
+    top_k_indices = sorted(
+        range(len(bm25_scores)),
+        key=lambda i: bm25_scores[i],
+        reverse=True,
+    )[:settings.retrieval_k]
+
+    bm25_docs = [corpus[i] for i in top_k_indices if bm25_scores[i] > 0]
+
+    console.print(f"   Semantic hits : [green]{len(semantic_docs)}[/green]")
+    console.print(f"   BM25 hits     : [green]{len(bm25_docs)}[/green]")
+
+    # ── RRF Merge ──────────────────────────────────────────
+    merged = rrf_merge(semantic_docs, bm25_docs)
+
+    # deduplicate
+    seen = set()
+    unique = []
+    for doc in merged:
+        if doc not in seen:
+            seen.add(doc)
+            unique.append(doc)
+
+    console.print(f"   After RRF+dedup: [green]{len(unique)}[/green] chunks")
+
+    if not unique:
         return {
             **state,
             "retrieved_docs": [],
             "retrieval_status": "empty",
         }
-    
-    retrieved = [doc.page_content for doc,_ in filtered]
 
     return {
         **state,
-        "retrieved_docs" : retrieved,
-        "retrieval_status" : "ok"
+        "retrieved_docs": unique,
+        "retrieval_status": "ok",
     }
-
 
 # ── Node 2 ────────────────────────────────────────────────
 PROMPT = ChatPromptTemplate.from_messages(
