@@ -1,0 +1,14 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# ChromaDB local data
+chroma_db/
+
+# Resume (private)
+data/resume.pdf
+
+# Private readme folder
+_readme/
