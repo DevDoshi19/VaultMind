@@ -57,10 +57,10 @@ def ingest_resume() -> int:
     ]
 
     os.makedirs("./data", exist_ok=True)
-    with open("./data/chunks.json", "w") as f:
+    with open("./data/chunks.json", "w", encoding="utf-8") as f:
         json.dump(bm25_data, f, indent=2)
 
-    print(f"   BM25 chunks saved to data/chunks.json")  # noqa: F541
+    print("   BM25 chunks saved to data/chunks.json")  # noqa: F541
     print(f"✅ Done. {len(chunks)} chunks ready")
 
     return len(chunks)
