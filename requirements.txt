@@ -1,7 +1,7 @@
 # Core
 langchain
 langchain-openai
-langchain-community
+langchain-community==0.2.19
 langchain-chroma
 langgraph
 langsmith
@@ -21,7 +21,7 @@ pydantic-settings
 tenacity
 
 # Phase 8 — evaluation
-ragas
+ragas==0.1.21
 
 # Phase 7 - BM25
 rank_bm25
