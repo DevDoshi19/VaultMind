@@ -4,6 +4,7 @@ from rich.panel import Panel
 from rich import print
 from app.graph import rag_graph
 from app.state import RAGState
+from langchain_core.tracers.context import tracing_v2_enabled
 
 console = Console()
 
@@ -25,6 +26,21 @@ def run_query(question: str) -> dict:
     }
 
     result = rag_graph.invoke(initial_state)
+    
+    with tracing_v2_enabled(project_name="vaultmind"):
+        result = rag_graph.invoke(
+            initial_state,
+            config={
+                "run_name": f"VaultMind | {question[:50]}",
+                "tags": ["production", "resume-rag"],
+                "metadata": {
+                    "phase": "8",
+                    "retrieval": "hybrid",
+                    "llm": "gpt-4o-mini",
+                }
+            }
+        )
+
     return result
 
 if __name__ == "__main__":
