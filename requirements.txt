@@ -27,7 +27,8 @@ tenacity
 rank_bm25
 
 # Evaluation (pinned — newer versions conflict with our stack)
-ragas==0.1.21
+# Evaluation
+ragas==0.4.3
 
 # Rich terminal
 rich

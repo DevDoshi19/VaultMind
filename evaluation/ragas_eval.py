@@ -5,9 +5,38 @@ import json
 import shutil
 from pathlib import Path
 
-from dotenv import load_dotenv
+import sys
+import types
+
+# ==========================================================
+# RAGAS 0.4.3 + LangChain 1.x compatibility workaround
+# ==========================================================
+
+dummy_chat = types.ModuleType(
+    "langchain_community.chat_models.vertexai"
+)
+
+dummy_chat.ChatVertexAI = type(
+    "ChatVertexAI",
+    (object,),
+    {}
+)
+
+sys.modules[
+    "langchain_community.chat_models.vertexai"
+] = dummy_chat
+
+import langchain_community.llms
+
+langchain_community.llms.VertexAI = type(
+    "VertexAI",
+    (object,),
+    {}
+)
+
+from dotenv import load_dotenv  # noqa: E402
 from datasets import Dataset
-from rich.console import Console
+from rich.console import Console  # noqa: E402
 from rich.table import Table
 
 from ragas import evaluate
