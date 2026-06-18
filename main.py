@@ -11,22 +11,18 @@ console = Console()
 def run_query(question: str) -> dict:
     initial_state: RAGState = {
         "question": question,
-        "question_is_relevant": False, 
+        "question_is_relevant": False,
         "retrieved_docs": [],
-        "retrieval_status":"",
-        "context_token_count":0,
+        "retrieval_status": "",
+        "context_token_count": 0,
         "answer": "",
-
-        "confidence_score":0.0,
-
+        "confidence_score": None,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
         "estimated_cost": 0.0,
     }
 
-    result = rag_graph.invoke(initial_state)
-    
     with tracing_v2_enabled(project_name="vaultmind"):
         result = rag_graph.invoke(
             initial_state,
@@ -43,6 +39,19 @@ def run_query(question: str) -> dict:
 
     return result
 
+
+def format_confidence(score) -> str:
+    """Safely format confidence score — handles None for blocked/irrelevant queries."""
+    if score is None:
+        return "[dim]N/A[/dim]"
+    elif score >= 0.7:
+        return f"[green]{score:.2f} ✅[/green]"
+    elif score >= 0.4:
+        return f"[yellow]{score:.2f} ⚠️[/yellow]"
+    else:
+        return f"[red]{score:.2f} ❌[/red]"
+
+
 if __name__ == "__main__":
     print("\n")
     print("-" * 40)
@@ -55,20 +64,22 @@ if __name__ == "__main__":
         if not question:
             continue
 
-        if question.lower() == "exit" or question.lower() == "quit" or question.lower() == "bye":
+        if question.lower() in ("exit", "quit", "bye"):
             print("👋 Bye!")
             break
 
         result = run_query(question)
-        # print(f"\nVaultMind: {result['answer']}")  # ← only this prints the answer
+
         console.print(Panel(
-            result['answer'],
+            result["answer"],
             title="[bold green]VaultMind[/bold green]",
-            border_style="green"
+            border_style="green",
         ))
 
+        confidence_str = format_confidence(result.get("confidence_score"))
+
         console.print(
-                f"[dim]📊 Tokens: {result['total_tokens']} | "
-                f"Cost: ${result['estimated_cost']:.6f} | "
-                f"Confidence: {result['confidence_score']:.2f}[/dim]"
+            f"[dim]📊 Tokens: {result['total_tokens']} | "
+            f"Cost: ${result['estimated_cost']:.6f}[/dim] | "
+            f"Confidence: {confidence_str}"
         )

@@ -20,7 +20,7 @@ class RAGState(TypedDict):
     context_token_count: int   # how many tokens ended up in context
     answer: str                # The generated answer based on the retrieved documents and question    
 
-    confidence_score: float       # Confidence score of the generated answer
+    confidence_score: float | None      # Confidence score of the generated answer
 
     prompt_tokens :int
     completion_tokens : int

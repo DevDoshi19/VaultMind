@@ -1,10 +1,12 @@
 # Core
-langchain
-langchain-openai
-langchain-community==0.2.19
-langchain-chroma
-langgraph
-langsmith
+langchain==1.3.9
+langchain-core==1.4.7
+langchain-openai==1.3.2
+langchain-community==0.4.2
+langchain-text-splitters==1.1.2
+langchain-chroma==1.1.0
+langgraph==1.2.5
+langsmith==0.8.16
 
 # Vector DB
 chromadb
@@ -16,12 +18,16 @@ pypdf
 python-dotenv
 pydantic
 pydantic-settings
+tiktoken
 
-# Phase 3 — retries
+# Retries
 tenacity
 
-# Phase 8 — evaluation
+# BM25
+rank_bm25
+
+# Evaluation (pinned — newer versions conflict with our stack)
 ragas==0.1.21
 
-# Phase 7 - BM25
-rank_bm25
+# Rich terminal
+rich
