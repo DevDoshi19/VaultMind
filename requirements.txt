@@ -1,0 +1,36 @@
+# Core
+langchain==1.3.9
+langchain-core==1.4.7
+langchain-openai==1.3.2
+langchain-community==0.4.2
+langchain-text-splitters==1.1.2
+langchain-chroma==1.1.0
+langgraph==1.2.5
+langsmith==0.8.16
+
+# Vector DB
+chromadb
+
+# Document loading
+pypdf
+
+# Utils
+python-dotenv
+pydantic
+pydantic-settings
+tiktoken
+
+# Retries
+tenacity
+
+# BM25
+rank_bm25
+
+# Evaluation (pinned — newer versions conflict with our stack)
+# Evaluation
+ragas==0.4.3
+
+# Rich terminal
+rich
+
+streamlit>=1.35.0

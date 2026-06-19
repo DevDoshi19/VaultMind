@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="vaultmind-bg" x1="18" y1="14" x2="110" y2="114" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171A24"/>
+      <stop offset="1" stop-color="#0B0D12"/>
+    </linearGradient>
+    <linearGradient id="vaultmind-glow" x1="40" y1="24" x2="102" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="30" fill="url(#vaultmind-bg)" stroke="#262A39" stroke-width="2"/>
+  <circle cx="95" cy="34" r="18" fill="url(#vaultmind-glow)" opacity="0.18"/>
+  <path d="M29 33L47.5 93L64 56L80.5 93L99 33" stroke="#F8FAFC" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M64 56L80.5 93L99 33" stroke="url(#vaultmind-glow)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
