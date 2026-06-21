@@ -33,4 +33,13 @@ ragas==0.4.3
 # Rich terminal
 rich
 
-streamlit>=1.35.0
+fastapi[all]
+
+uvicorn
+python-jose
+pyjwt
+
+slowapi
+
+scalar_fastapi
+

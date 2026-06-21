@@ -10,18 +10,15 @@ from pathlib import Path
 from textwrap import dedent
 
 import streamlit as st
-from langchain_core.tracers.context import tracing_v2_enabled
-
-from app.graph import rag_graph
-from app.state import RAGState
+import httpx
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 LOGO_PNG = ASSETS_DIR / "logo.png"
 LOGO_DATA_URI = f"data:image/png;base64,{b64encode(LOGO_PNG.read_bytes()).decode('ascii')}"
-
-# ─────────────────────────────────────────────
+BACKEND_URL = "http://127.0.0.1:8000"
+# ----------------------------------------------------
 # PAGE CONFIG
-# ─────────────────────────────────────────────
+# ----------------------------------------------------
 st.set_page_config(
     page_title="VaultMind",
     page_icon=str(LOGO_PNG),
@@ -29,9 +26,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─────────────────────────────────────────────
+# ----------------------------------------------------
 # GLOBAL CSS
-# ─────────────────────────────────────────────
+# ----------------------------------------------------
 st.markdown(
     """
 <style>
@@ -442,59 +439,50 @@ div[data-testid="stBottomBlockContainer"] > div {
 )
 
 
-# ─────────────────────────────────────────────
+# ----------------------------------------------------
 # HELPERS
-# ─────────────────────────────────────────────
+# ----------------------------------------------------
 def sanitize_text(text: str) -> str:
     return escape(text).replace("\n", "<br>")
 
 
 def confidence_bar(score) -> str:
-    """Render a thin inline confidence bar — the signature element."""
     if score is None:
         return ""
 
     pct = int(score * 100)
     if score >= 0.7:
-        color = "#10B981"
-        label = f"{score:.2f}"
+        color, label = "#10B981", f"{score:.2f}"
     elif score >= 0.4:
-        color = "#F59E0B"
-        label = f"{score:.2f}"
+        color, label = "#F59E0B", f"{score:.2f}"
     else:
-        color = "#EF4444"
-        label = f"{score:.2f}"
+        color, label = "#EF4444", f"{score:.2f}"
 
-    return dedent(
-        f"""
+    return dedent(f"""
         <div style="display:flex;align-items:center;gap:0.7rem;margin-top:0.9rem;">
           <div style="flex:1;height:3px;background:#202432;border-radius:999px;overflow:hidden;">
             <div style="width:{pct}%;height:100%;background:{color};border-radius:999px;transition:width 0.4s ease;"></div>
           </div>
           <span style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:{color};min-width:2.8rem;text-align:right;">{label}</span>
         </div>
-        """
-    ).strip()
+    """).strip()
 
 
 def format_meta_row(tokens: int, cost: float) -> str:
-    return dedent(
-        f"""
+    return dedent(f"""
         <div style="display:flex;gap:1.4rem;margin-top:0.65rem;font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:#6E7588;">
           <span>{tokens:,} tok</span>
           <span>${cost:.6f}</span>
         </div>
-        """
-    ).strip()
+    """).strip()
 
 
 def brand_markup(location: str, subtitle: str) -> str:
-    title_class = "vm-wordmark-main" if location == "main" else "vm-wordmark-sidebar"
-    logo_class = "vm-logo-main" if location == "main" else ""
+    title_class  = "vm-wordmark-main"    if location == "main" else "vm-wordmark-sidebar"
+    logo_class   = "vm-logo-main"        if location == "main" else ""
     wrapper_class = "vm-brand vm-brand-center" if location == "main" else "vm-brand"
 
-    return dedent(
-        f"""
+    return dedent(f"""
         <div class="{wrapper_class}">
           <img src="{LOGO_DATA_URI}" alt="VaultMind logo" class="vm-logo {logo_class}">
           <div class="vm-brand-copy">
@@ -504,8 +492,7 @@ def brand_markup(location: str, subtitle: str) -> str:
             <div class="vm-kicker">{subtitle}</div>
           </div>
         </div>
-        """
-    ).strip()
+    """).strip()
 
 
 def render_brand(location: str, subtitle: str) -> None:
@@ -514,49 +501,109 @@ def render_brand(location: str, subtitle: str) -> None:
 
 def render_user_message(content: str) -> None:
     st.markdown(
-        dedent(
-            f"""
+        dedent(f"""
             <div class="vm-message-row user">
               <div class="vm-user-bubble">{sanitize_text(content)}</div>
             </div>
-            """
-        ).strip(),
+        """).strip(),
         unsafe_allow_html=True,
     )
 
 
 def render_assistant_message(content: str, meta: dict) -> None:
-    blocked = meta.get("input_blocked", False)
-    flagged = meta.get("output_flagged", False)
+    blocked    = meta.get("input_blocked", False)
+    flagged    = meta.get("output_flagged", False)
     confidence = meta.get("confidence_score")
-    tokens = meta.get("total_tokens", 0)
-    cost = meta.get("estimated_cost", 0.0)
+    tokens     = meta.get("total_tokens", 0)
+    cost       = meta.get("estimated_cost", 0.0)
 
-    border_color = "#3B1A1A" if (blocked or flagged) else "#1C1E27"
-    accent = "#EF4444" if (blocked or flagged) else "#8B5CF6"
+    border_color     = "#3B1A1A" if (blocked or flagged) else "#1C1E27"
+    accent           = "#EF4444" if (blocked or flagged) else "#8B5CF6"
     confidence_markup = confidence_bar(confidence)
 
     st.markdown(
-        dedent(
-            f"""
+        dedent(f"""
             <div class="vm-answer-wrap">
               <div class="vm-answer-card" style="border-color:{border_color};border-left-color:{accent};">
                 <div class="vm-answer-text">{sanitize_text(content)}</div>
-                {confidence_markup if confidence_markup else ""}
+                {confidence_markup}
               </div>
             </div>
-            """
-        ).strip(),
+        """).strip(),
         unsafe_allow_html=True,
     )
-
     st.markdown(format_meta_row(tokens, cost), unsafe_allow_html=True)
 
 
-def render_process_panel(statuses: dict, status_text: str, location: str) -> None:
-    if location != "sidebar":
-        return
+def render_chunk_count(count: int) -> None:
+    st.markdown(
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:0.72rem;'
+        f'color:#586075;margin-top:0.4rem;">{count} chunks retrieved</div>',
+        unsafe_allow_html=True,
+    )
 
+
+PIPELINE_NODES = [
+    ("01", "Input Guardrail",  "Pattern match + LLM safety"),
+    ("02", "Classifier",       "Resume query detection"),
+    ("03", "Hybrid Retriever", "ChromaDB · BM25 · RRF"),
+    ("04", "Context Guard",    "Token budget ≤ 1,000"),
+    ("05", "Generator",        "GPT-4o-mini · retry ×3"),
+    ("06", "Output Guardrail", "PII redaction · safety"),
+    ("07", "Confidence",       "Self-RAG score"),
+]
+
+STATUS_STYLES = {
+    "idle":    ("color:#586075;", "○"),
+    "running": ("color:#8B5CF6;animation:vm-pulse 1.2s infinite;", "◉"),
+    "done":    ("color:#10B981;", "✓"),
+    "blocked": ("color:#EF4444;", "✕"),
+    "skipped": ("color:#2A2E3D;", "–"),
+}
+
+
+def render_pipeline(statuses: dict) -> None:
+    st.markdown("""
+        <style>
+        .pipe-label {
+          font-family:'Inter',sans-serif;font-size:0.64rem;font-weight:700;
+          letter-spacing:0.1em;text-transform:uppercase;color:#848BA0;margin-bottom:0.7rem;
+        }
+        .pipe-row {
+          display:flex;align-items:center;gap:0.65rem;
+          padding:0.46rem 0;border-bottom:1px solid #151822;
+        }
+        .pipe-num { font-family:'JetBrains Mono',monospace;font-size:0.64rem;color:#636B80;min-width:1.5rem; }
+        .pipe-name { font-family:'Inter',sans-serif;font-size:0.8rem;font-weight:500;flex:1; }
+        .pipe-dot { font-size:0.68rem; }
+        </style>
+        <div class="pipe-label">Pipeline</div>
+    """, unsafe_allow_html=True)
+
+    for i, (num, name, _) in enumerate(PIPELINE_NODES):
+        status     = statuses.get(i, "idle")
+        style, dot = STATUS_STYLES[status]
+
+        name_styles = {
+            "idle":    "color:#747C90;",
+            "running": "color:#D8CCFF;",
+            "done":    "color:#F0F3FA;",
+            "blocked": "color:#F87171;",
+            "skipped": "color:#3A4051;",
+        }
+        name_style = name_styles.get(status, "color:#747C90;")
+
+        st.markdown(
+            f'<div class="pipe-row">'
+            f'<span class="pipe-num">{num}</span>'
+            f'<span class="pipe-name" style="{name_style}">{name}</span>'
+            f'<span class="pipe-dot" style="{style}">{dot}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def render_process_panel(statuses: dict, status_text: str) -> None:
     render_pipeline(statuses)
     st.markdown(
         f"""
@@ -569,158 +616,83 @@ def render_process_panel(statuses: dict, status_text: str, location: str) -> Non
     )
 
 
-PIPELINE_NODES = [
-    ("01", "Input Guardrail", "Pattern match + LLM safety"),
-    ("02", "Classifier", "Resume query detection"),
-    ("03", "Hybrid Retriever", "ChromaDB · BM25 · RRF"),
-    ("04", "Context Guard", "Token budget ≤ 1,000"),
-    ("05", "Generator", "GPT-4o-mini · retry ×3"),
-    ("06", "Output Guardrail", "PII redaction · safety"),
-    ("07", "Confidence", "Self-RAG score"),
-]
-
-STATUS_STYLES = {
-    "idle": ("color:#586075;", "○"),
-    "running": ("color:#8B5CF6;animation:vm-pulse 1.2s infinite;", "◉"),
-    "done": ("color:#10B981;", "✓"),
-    "blocked": ("color:#EF4444;", "✕"),
-    "skipped": ("color:#2A2E3D;", "–"),
-}
-
-
-def render_pipeline(statuses: dict):
-    st.markdown(
-        """
-        <style>
-        .pipe-label {
-          font-family:'Inter',sans-serif;
-          font-size:0.64rem;
-          font-weight:700;
-          letter-spacing:0.1em;
-          text-transform:uppercase;
-          color:#848BA0;
-          margin-bottom:0.7rem;
-        }
-        .pipe-row {
-          display:flex;
-          align-items:center;
-          gap:0.65rem;
-          padding:0.46rem 0;
-          border-bottom:1px solid #151822;
-        }
-        .pipe-num {
-          font-family:'JetBrains Mono',monospace;
-          font-size:0.64rem;
-          color:#636B80;
-          min-width:1.5rem;
-        }
-        .pipe-name {
-          font-family:'Inter',sans-serif;
-          font-size:0.8rem;
-          font-weight:500;
-          flex:1;
-        }
-        .pipe-dot {
-          font-size:0.68rem;
-        }
-        </style>
-        <div class="pipe-label">Pipeline</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    for i, (num, name, _) in enumerate(PIPELINE_NODES):
-        status = statuses.get(i, "idle")
-        style, dot = STATUS_STYLES[status]
-
-        if status == "idle":
-            name_style = "color:#747C90;"
-        elif status == "running":
-            name_style = "color:#D8CCFF;"
-        elif status == "done":
-            name_style = "color:#F0F3FA;"
-        elif status == "blocked":
-            name_style = "color:#F87171;"
-        else:
-            name_style = "color:#3A4051;"
-
-        st.markdown(
-            f'<div class="pipe-row"><span class="pipe-num">{num}</span><span class="pipe-name" style="{name_style}">{name}</span><span class="pipe-dot" style="{style}">{dot}</span></div>',
-            unsafe_allow_html=True,
-        )
-
-
 # ─────────────────────────────────────────────
-# GRAPH RUNNER
+# BACKEND RUNNER
 # ─────────────────────────────────────────────
-def run_vaultmind(question: str, pipeline_placeholder, status_placeholder) -> dict:
-    initial_state: RAGState = {
-        "question": question,
-        "question_is_relevant": False,
-        "retrieved_docs": [],
-        "retrieval_status": "",
-        "context_token_count": 0,
-        "answer": "",
+def _error_result(message: str) -> dict:
+    # single place to build an error-state result dict — no duplication
+    return {
+        "answer":           message,
+        "input_blocked":    True,
+        "output_flagged":   False,
         "confidence_score": None,
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0,
-        "estimated_cost": 0.0,
-        "input_blocked": False,
-        "output_flagged": False,
+        "total_tokens":     0,
+        "estimated_cost":   0.0,
+        "retrieval_status": "",
+        "retrieved_chunks": 0,
     }
 
-    statuses = {i: "idle" for i in range(7)}
-    statuses[0] = "running"
-    with pipeline_placeholder.container():
-        render_process_panel(statuses, "Checking safety...", "sidebar")
-    status_placeholder.markdown(
-        '<span style="font-family:\'Inter\',sans-serif;font-size:0.76rem;color:#9AA3B8;">Checking safety...</span>',
-        unsafe_allow_html=True,
-    )
-    st.session_state.pipeline_statuses = statuses
-    st.session_state.pipeline_status_label = "Checking safety..."
 
-    with tracing_v2_enabled(project_name="vaultmind"):
-        result = rag_graph.invoke(
-            initial_state,
-            config={
-                "run_name": f"VaultMind | {question[:50]}",
-                "tags": ["production", "resume-rag", "streamlit"],
-                "metadata": {"phase": "11", "retrieval": "hybrid", "llm": "gpt-4o-mini"},
-            },
+def run_vaultmind(question: str, pipeline_placeholder, status_placeholder) -> dict:
+
+    # all nodes pulse while we wait — backend is a black box over HTTP
+    statuses = {i: "running" for i in range(7)}
+    with pipeline_placeholder.container():
+        render_process_panel(statuses, "Running pipeline...")
+
+    try:
+        response = httpx.post(
+            f"{BACKEND_URL}/api/query",
+            json={"question": question},
+            timeout=60.0,
         )
 
-    blocked = result.get("input_blocked", False)
-    relevant = result.get("question_is_relevant", False)
+        if response.status_code == 429:
+            return _error_result("⚠️ Too many requests. Please wait a moment and try again.")
+
+        response.raise_for_status()
+        result = response.json()
+
+    except httpx.ConnectError:
+        return _error_result("⚠️ Cannot reach the VaultMind backend. Is it running on port 8000?")
+
+    except httpx.HTTPStatusError as e:
+        return _error_result(f"⚠️ Backend error ({e.response.status_code}). Please try again.")
+
+    # reconstruct which nodes ran from the result fields
+    blocked    = result.get("input_blocked", False)
     ret_status = result.get("retrieval_status", "")
 
     if blocked:
-        statuses = {0: "blocked", 1: "skipped", 2: "skipped", 3: "skipped", 4: "skipped", 5: "skipped", 6: "skipped"}
-    elif not relevant:
-        statuses = {0: "done", 1: "done", 2: "skipped", 3: "skipped", 4: "done", 5: "done", 6: "done"}
-    elif ret_status == "empty":
-        statuses = {i: "done" for i in range(7)}
+        statuses = {0:"blocked", 1:"skipped", 2:"skipped", 3:"skipped",
+                    4:"skipped", 5:"skipped", 6:"skipped"}
+    elif ret_status == "":
+        # classifier said not relevant — retriever never ran
+        statuses = {0:"done", 1:"done", 2:"skipped", 3:"skipped",
+                    4:"done",  5:"done",  6:"done"}
     else:
         statuses = {i: "done" for i in range(7)}
 
+    # animate nodes lighting up one by one
     for node_idx in range(7):
         tmp = {i: "idle" for i in range(7)}
         for j in range(node_idx):
             tmp[j] = statuses[j]
         tmp[node_idx] = statuses[node_idx]
         with pipeline_placeholder.container():
-            render_process_panel(tmp, "Running pipeline...", "sidebar")
+            render_process_panel(tmp, "Running pipeline...")
         time.sleep(0.06)
 
     with pipeline_placeholder.container():
-        render_process_panel(statuses, "Complete", "sidebar")
+        render_process_panel(statuses, "Complete")
 
+    # Fix 3 — update status_placeholder text after pipeline finishes
     status_placeholder.markdown(
         '<span style="font-family:\'Inter\',sans-serif;font-size:0.76rem;color:#7F879B;">Complete</span>',
         unsafe_allow_html=True,
     )
-    st.session_state.pipeline_statuses = statuses
+
+    st.session_state.pipeline_statuses     = statuses
     st.session_state.pipeline_status_label = "Complete"
     return result
 
@@ -729,12 +701,12 @@ def run_vaultmind(question: str, pipeline_placeholder, status_placeholder) -> di
 # SESSION STATE
 # ─────────────────────────────────────────────
 for key, default in [
-    ("messages", []),
-    ("total_tokens_session", 0),
-    ("total_cost_session", 0.0),
-    ("query_count", 0),
-    ("pipeline_statuses", {i: "idle" for i in range(7)}),
-    ("pipeline_status_label", "Ready to answer"),
+    ("messages",               []),
+    ("total_tokens_session",   0),
+    ("total_cost_session",     0.0),
+    ("query_count",            0),
+    ("pipeline_statuses",      {i: "idle" for i in range(7)}),
+    ("pipeline_status_label",  "Ready to answer"),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -752,76 +724,66 @@ with st.sidebar:
         render_process_panel(
             st.session_state.pipeline_statuses,
             st.session_state.pipeline_status_label,
-            "sidebar",
         )
 
     status_placeholder = st.empty()
 
     st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div style="font-family:'Inter',sans-serif;font-size:0.64rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#848BA0;margin-bottom:0.85rem;">
+    st.markdown("""
+        <div style="font-family:'Inter',sans-serif;font-size:0.64rem;font-weight:700;
+             letter-spacing:0.1em;text-transform:uppercase;color:#848BA0;margin-bottom:0.85rem;">
           Session
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div style="background:#111318;border:1px solid #1C1E27;border-radius:10px;padding:0.9rem 0.8rem;">
-              <div style="font-family:'Inter',sans-serif;font-size:0.62rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#7E869A;margin-bottom:0.38rem;">Queries</div>
-              <div style="font-family:'JetBrains Mono',monospace;font-size:1.18rem;font-weight:500;color:#F5F7FB;">{st.session_state.query_count}</div>
+              <div style="font-family:'Inter',sans-serif;font-size:0.62rem;font-weight:600;
+                   letter-spacing:0.08em;text-transform:uppercase;color:#7E869A;margin-bottom:0.38rem;">Queries</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:1.18rem;font-weight:500;
+                   color:#F5F7FB;">{st.session_state.query_count}</div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        """, unsafe_allow_html=True)
     with col2:
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div style="background:#111318;border:1px solid #1C1E27;border-radius:10px;padding:0.9rem 0.8rem;">
-              <div style="font-family:'Inter',sans-serif;font-size:0.62rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#7E869A;margin-bottom:0.38rem;">Tokens</div>
-              <div style="font-family:'JetBrains Mono',monospace;font-size:1.18rem;font-weight:500;color:#F5F7FB;">{st.session_state.total_tokens_session:,}</div>
+              <div style="font-family:'Inter',sans-serif;font-size:0.62rem;font-weight:600;
+                   letter-spacing:0.08em;text-transform:uppercase;color:#7E869A;margin-bottom:0.38rem;">Tokens</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:1.18rem;font-weight:500;
+                   color:#F5F7FB;">{st.session_state.total_tokens_session:,}</div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:0.55rem'></div>", unsafe_allow_html=True)
-    st.markdown(
-        f"""
+    st.markdown(f"""
         <div style="background:#111318;border:1px solid #1C1E27;border-radius:10px;padding:0.9rem 0.8rem;">
-          <div style="font-family:'Inter',sans-serif;font-size:0.62rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#7E869A;margin-bottom:0.38rem;">Session Cost</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:1.18rem;font-weight:500;color:#F5F7FB;">${st.session_state.total_cost_session:.5f}</div>
+          <div style="font-family:'Inter',sans-serif;font-size:0.62rem;font-weight:600;
+               letter-spacing:0.08em;text-transform:uppercase;color:#7E869A;margin-bottom:0.38rem;">Session Cost</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:1.18rem;font-weight:500;
+               color:#F5F7FB;">${st.session_state.total_cost_session:.5f}</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:1.55rem'></div>", unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div style="font-family:'Inter',sans-serif;font-size:0.64rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#848BA0;margin-bottom:0.85rem;">
+    st.markdown("""
+        <div style="font-family:'Inter',sans-serif;font-size:0.64rem;font-weight:700;
+             letter-spacing:0.1em;text-transform:uppercase;color:#848BA0;margin-bottom:0.85rem;">
           Evaluation · RAGAS
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
-    ragas_scores = [
+    for metric, score in [
         ("Faithfulness", 0.993),
-        ("Relevancy", 0.906),
-        ("Precision", 0.738),
-        ("Recall", 0.821),
-        ("Overall", 0.865),
-    ]
-    for metric, score in ragas_scores:
-        pct = int(score * 100)
+        ("Relevancy",    0.906),
+        ("Precision",    0.738),
+        ("Recall",       0.821),
+        ("Overall",      0.865),
+    ]:
+        pct   = int(score * 100)
         color = "#10B981" if score >= 0.85 else "#F59E0B" if score >= 0.7 else "#EF4444"
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div style="margin-bottom:0.6rem;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.28rem;">
                 <span style="font-family:'Inter',sans-serif;font-size:0.74rem;color:#A6AEC2;">{metric}</span>
@@ -831,42 +793,35 @@ with st.sidebar:
                 <div style="width:{pct}%;height:100%;background:{color};border-radius:999px;opacity:0.8;"></div>
               </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:1.55rem'></div>", unsafe_allow_html=True)
     if st.button("Clear conversation", use_container_width=True):
-        st.session_state.messages = []
-        st.session_state.pipeline_statuses = {i: "idle" for i in range(7)}
-        st.session_state.pipeline_status_label = "Ready to answer"
+        st.session_state.messages               = []
+        st.session_state.pipeline_statuses      = {i: "idle" for i in range(7)}
+        st.session_state.pipeline_status_label  = "Ready to answer"
         st.rerun()
 
-    st.markdown(
-        """
+    st.markdown("""
         <div style="margin-top:1.55rem;padding-top:1rem;border-top:1px solid #151822;">
           <div style="font-family:'JetBrains Mono',monospace;font-size:0.64rem;color:#70788C;line-height:1.95;">
             gpt-4o-mini · text-embedding-3-small<br>
             ChromaDB · BM25Okapi · RRF
           </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
 # MAIN — HEADER
 # ─────────────────────────────────────────────
 st.markdown(
-    dedent(
-        f"""
+    dedent(f"""
         <div class="vm-hero">
           {brand_markup("main", "Ask about Dev Doshi — experience, skills, projects, education.")}
         </div>
         <div class="vm-divider"></div>
-        """
-    ).strip(),
+    """).strip(),
     unsafe_allow_html=True,
 )
 
@@ -878,22 +833,13 @@ for msg in st.session_state.messages:
     if msg["role"] == "user":
         render_user_message(msg["content"])
     else:
-        meta = msg.get("meta", {})
-        ret_docs = meta.get("retrieved_docs", [])
+        meta        = msg.get("meta", {})
+        chunk_count = meta.get("retrieved_chunks", 0)
 
         render_assistant_message(msg["content"], meta)
 
-        if ret_docs and not meta.get("input_blocked", False):
-            with st.expander(f"{len(ret_docs)} context chunks retrieved"):
-                for i, chunk in enumerate(ret_docs, 1):
-                    st.markdown(
-                        f"""
-                        <div style="background:#0C0E14;border:1px solid #1C1E27;border-radius:10px;padding:0.78rem 0.92rem;margin-bottom:0.55rem;font-family:'JetBrains Mono',monospace;font-size:0.74rem;color:#A6AEC2;line-height:1.68;white-space:pre-wrap;word-break:break-word;">
-                          <span style="color:#70788C;margin-right:0.5rem">{i:02d}</span>{sanitize_text(chunk[:450])}{"..." if len(chunk) > 450 else ""}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+        if chunk_count > 0 and not meta.get("input_blocked", False):
+            render_chunk_count(chunk_count)
 
 
 # ─────────────────────────────────────────────
@@ -903,70 +849,56 @@ if question := st.chat_input("Message VaultMind..."):
     render_user_message(question)
 
     thinking_slot = st.empty()
-    thinking_slot.markdown(
-        """
+    thinking_slot.markdown("""
         <div class="vm-thinking">
           <div style="display:flex;align-items:center;gap:0.7rem;">
             <div class="vm-dot"></div>
             <span class="vm-thinking-label">Processing your question...</span>
           </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
     result = run_vaultmind(question, pipeline_placeholder, status_placeholder)
     thinking_slot.empty()
 
-    answer = result.get("answer", "No answer returned.")
-    blocked = result.get("input_blocked", False)
-    flagged = result.get("output_flagged", False)
-    confidence = result.get("confidence_score")
-    tokens = result.get("total_tokens", 0)
-    cost = result.get("estimated_cost", 0.0)
-    ret_docs = result.get("retrieved_docs", [])
+    answer      = result.get("answer", "No answer returned.")
+    blocked     = result.get("input_blocked", False)
+    flagged     = result.get("output_flagged", False)
+    confidence  = result.get("confidence_score")
+    tokens      = result.get("total_tokens", 0)
+    cost        = result.get("estimated_cost", 0.0)
+    chunk_count = result.get("retrieved_chunks", 0)
 
     render_assistant_message(
         answer,
         {
-            "input_blocked": blocked,
-            "output_flagged": flagged,
+            "input_blocked":    blocked,
+            "output_flagged":   flagged,
             "confidence_score": confidence,
-            "total_tokens": tokens,
-            "estimated_cost": cost,
+            "total_tokens":     tokens,
+            "estimated_cost":   cost,
         },
     )
 
-    if ret_docs and not blocked:
-        with st.expander(f"{len(ret_docs)} context chunks retrieved"):
-            for i, chunk in enumerate(ret_docs, 1):
-                st.markdown(
-                    f"""
-                    <div style="background:#0C0E14;border:1px solid #1C1E27;border-radius:10px;padding:0.78rem 0.92rem;margin-bottom:0.55rem;font-family:'JetBrains Mono',monospace;font-size:0.74rem;color:#A6AEC2;line-height:1.68;white-space:pre-wrap;word-break:break-word;">
-                      <span style="color:#70788C;margin-right:0.5rem">{i:02d}</span>{sanitize_text(chunk[:450])}{"..." if len(chunk) > 450 else ""}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+    if chunk_count > 0 and not blocked:
+        render_chunk_count(chunk_count)
 
     st.session_state.messages.append({"role": "user", "content": question})
-    st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": answer,
-            "meta": {
-                "input_blocked": blocked,
-                "output_flagged": flagged,
-                "confidence_score": confidence,
-                "total_tokens": tokens,
-                "estimated_cost": cost,
-                "retrieved_docs": ret_docs,
-            },
-        }
-    )
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": answer,
+        "meta": {
+            "input_blocked":    blocked,
+            "output_flagged":   flagged,
+            "confidence_score": confidence,
+            "total_tokens":     tokens,
+            "estimated_cost":   cost,
+            "retrieved_chunks": chunk_count,
+        },
+    })
 
     st.session_state.total_tokens_session += tokens
-    st.session_state.total_cost_session += cost
-    st.session_state.query_count += 1
+    st.session_state.total_cost_session   += cost
+    st.session_state.query_count          += 1
 
     st.rerun()

@@ -1,0 +1,135 @@
+[
+  {
+    "content": "DEV DOSHI\nGithub\u00b7LinkedIn\u00b7devdoshi1927@gmail.com\u00b7+91 97249 31330\nSummary\nAI & Data Science undergraduate (CGPA9.37) specializing in LLM applications, multi-agent systems, and\nautomation pipelines. Experienced in designing and deploying production-ready AI tools using LangChain,\nLangGraph, FastMCP, and n8n - focused on solutions that create real business value.\nSkills\nAI / LLMLangChain, LangGraph, LangSmith, FastMCP, RAG, Prompt Engineering,\nMulti-Agent Systems, Ollama",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  },
+  {
+    "content": "Multi-Agent Systems, Ollama\nVector StoresChromaDB, FAISS\nAutomationn8n, Agentic Workflow Design, Google Sheets API\nBackend / APIsFastAPI, Streamlit, Docker, SQLite (async) , Pydantic\nML / DLScikit-learn, TensorFlow, ANN, CNN, Supervised & Unsupervised Learning\nLanguagesPython, SQL, C++\nToolsMulti-LLM Integration (Gemini, OpenAI, Groq), Git, GitHub\nProjects\nAgentic Research & Analysis Pipeline Code\nn8n \u00b7 Research / Logical / Explainer Agents \u00b7 Google Sheets \u00b7 Chat UI",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  },
+  {
+    "content": "n8n \u00b7 Research / Logical / Explainer Agents \u00b7 Google Sheets \u00b7 Chat UI\n\u2022 Routes queries across 3 specialized agents via intent classification; retrieves company financial docs to\neliminate hallucinations.\n\u2022 Evaluation scores, performance metrics, and errors auto-logged to Google Sheets for live monitoring.\nExpense Tracker MCP Server Code\nFastMCP \u00b7 SQLite (async) \u00b7 Claude MCP Connector \u00b7 FastMCP Cloud",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  },
+  {
+    "content": "Expense Tracker MCP Server Code\nFastMCP \u00b7 SQLite (async) \u00b7 Claude MCP Connector \u00b7 FastMCP Cloud\n\u2022 Async MCP server with 6+ typed tools (add, query , summarise, budget alerts) exposed directly to Claude.\n\u2022 Handles concurrent multi-user sessions via async SQLite; deployed on FastMCP cloud with zero local\nsetup.\n\u2022 Connect instantly by adding the hosted URL to any Claude MCP client \u2013 no installation required.\nCareerForge AI \u2014 Full-Stack Career Intelligence Platform Code \u00b7 Live Demo",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  },
+  {
+    "content": "CareerForge AI \u2014 Full-Stack Career Intelligence Platform Code \u00b7 Live Demo\nLangChain \u00b7 FastAPI \u00b7 Streamlit \u00b7 SQLite \u00b7 Gemini API\n\u2022 ATS scanner evaluating resumes against 100+ keywords, returns score, salary estimate, gaps, and tips.\n\u2022 Dual-mode resume builder (Modern + Classic) generating a download-ready PDF in under 20 seconds.\n\u2022 Context-aware chatbot for resume Q&A with persistent multi-user session storage.\nPersistent Chat Assistant with Live Tools & Memory Code \u00b7 Live Demo",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  },
+  {
+    "content": "Persistent Chat Assistant with Live Tools & Memory Code \u00b7 Live Demo\nLangGraph \u00b7 SQLite (async) \u00b7 Gemini API \u00b7 Streamlit \u00b7 LangSmith\n\u2022 Live tool use: real-time stock prices, weather, and context-aware memory across sessions.\n\u2022 Auto-generates chat titles; full history persisted in async SQLite survives restarts and reloads.\nEducation & Certifications\n2023-27B.Tech in AI & Data Science- ADIT, CVM University CGPA:9.37(Sem 1\u20135)\n2021-23 Higher Secondary School (Science) - Adarsh Vidhyalaya",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  },
+  {
+    "content": "2021-23 Higher Secondary School (Science) - Adarsh Vidhyalaya\n2025SAP Foundation Course- Edunet Foundation\n2025Python Programming- HackerRank\nActivities & Interests\n\u2022 Participated inSmart India Hackathon&College Ideathonin 2024 ,2025\n\u2022 Creating content onmotivation, books, and mindset; independently studyingpersonal finance and\nfundamental analysis.",
+    "metadata": {
+      "producer": "pdfTeX-1.40.27",
+      "creator": "LaTeX with hyperref",
+      "creationdate": "2026-03-15T12:28:23+00:00",
+      "author": "",
+      "keywords": "",
+      "moddate": "2026-03-15T12:28:23+00:00",
+      "ptex.fullbanner": "This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) kpathsea version 6.4.1",
+      "subject": "",
+      "title": "",
+      "trapped": "/False",
+      "source": "./data/resume.pdf",
+      "total_pages": 1,
+      "page": 0,
+      "page_label": "1"
+    }
+  }
+]

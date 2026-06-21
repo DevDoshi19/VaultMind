@@ -1,4 +1,7 @@
-# .github/workflows/ci.yml
+# VaultMind CI workflow
+#   backend  → installs backend deps, verifies pipeline + API imports
+#   frontend → installs frontend deps, verifies streamlit imports
+
 name: VaultMind CI
 
 on:
@@ -8,8 +11,15 @@ on:
     branches: [main]
 
 jobs:
-  test:
+
+  # -- Backend job --
+  backend:
+    name: Backend checks
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend   # all steps run from VaultMind/backend/
 
     steps:
       - name: Checkout code
@@ -20,14 +30,57 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: pip install -r requirements.txt
 
-      - name: Verify imports
+      # Pipeline layer for our existing LangGraph nodes and graph
+      - name: Verify pipeline imports
         run: |
           python -c "from app.config import settings; print('✅ Config OK')"
           python -c "from app.state import RAGState; print('✅ State OK')"
           python -c "from app.nodes import retrieve_node, generate_node; print('✅ Nodes OK')"
-          python -c "from app.graph import rag_graph; print('✅ Graph OK')"
+          python -c "from app.graph import build_graph; print('✅ Graph OK')"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      # API layer : FastAPI routes and middleware
+      - name: Verify API imports
+        run: |
+          python -c "from api.routes.health import router; print('✅ Health route OK')"
+          python -c "from api.routes.query import router; print('✅ Query route OK')"
+          python -c "from api.middleware.rate_limit import limiter; print('✅ Rate limiter OK')"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      # Full app boot : confirms lifespan, CORS, and router mounting all wire up
+      - name: Verify FastAPI app builds
+        run: |
+          python -c "from api.main import app; print('✅ FastAPI app OK')"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  # -- Frontend job --
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend   # all steps run from VaultMind/frontend/
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install frontend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify frontend dependencies import
+        run: |
+          python -c "import streamlit; print('✅ Streamlit OK')"
+          python -c "import httpx; print('✅ httpx OK')"

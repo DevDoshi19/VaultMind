@@ -1,0 +1,5 @@
+# evaluation/requirements.txt
+# Run separately — not part of the backend or frontend service
+# Pin strictly — ragas 0.1.21 is the last version compatible with our stack
+ragas==0.1.21
+langchain-community==0.2.19
