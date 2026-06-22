@@ -1,7 +1,3 @@
-# .github/workflows/ci.yml
-#
-# VaultMind CI/CD — runs on every push and PR to main.
-#
 # Jobs:
 #   backend-checks   → verify pipeline + API imports (parallel)
 #   frontend-checks  → verify streamlit + httpx imports (parallel)
