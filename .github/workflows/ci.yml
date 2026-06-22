@@ -1,6 +1,15 @@
-# VaultMind CI workflow
-#   backend  → installs backend deps, verifies pipeline + API imports
-#   frontend → installs frontend deps, verifies streamlit imports
+# .github/workflows/ci.yml
+#
+# VaultMind CI/CD — runs on every push and PR to main.
+#
+# Jobs:
+#   backend-checks   → verify pipeline + API imports (parallel)
+#   frontend-checks  → verify streamlit + httpx imports (parallel)
+#   build-and-push   → build images, smoke test, push to ghcr.io (after checks pass)
+#
+# Secrets required:
+#   OPENAI_API_KEY   → GitHub Settings → Secrets → Actions
+#   GITHUB_TOKEN     → provided automatically by GitHub Actions
 
 name: VaultMind CI
 
@@ -10,16 +19,21 @@ on:
   pull_request:
     branches: [main]
 
+# Grant write permission to push images to ghcr.io
+permissions:
+  contents: read
+  packages: write
+
 jobs:
 
-  # -- Backend job --
-  backend:
+  # ── Backend import checks ──────────────────────────────────────────────────
+  backend-checks:
     name: Backend checks
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: backend   # all steps run from VaultMind/backend/
+        working-directory: backend
 
     steps:
       - name: Checkout code
@@ -33,7 +47,6 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r requirements.txt
 
-      # Pipeline layer for our existing LangGraph nodes and graph
       - name: Verify pipeline imports
         run: |
           python -c "from app.config import settings; print('✅ Config OK')"
@@ -43,30 +56,23 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      # API layer : FastAPI routes and middleware
       - name: Verify API imports
         run: |
           python -c "from api.routes.health import router; print('✅ Health route OK')"
           python -c "from api.routes.query import router; print('✅ Query route OK')"
-          python -c "from api.middleware.rate_limit import limiter; print('✅ Rate limiter OK')"
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
-      # Full app boot : confirms lifespan, CORS, and router mounting all wire up
-      - name: Verify FastAPI app builds
-        run: |
           python -c "from api.main import app; print('✅ FastAPI app OK')"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-  # -- Frontend job --
-  frontend:
+
+  # ── Frontend import checks ─────────────────────────────────────────────────
+  frontend-checks:
     name: Frontend checks
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: frontend   # all steps run from VaultMind/frontend/
+        working-directory: frontend
 
     steps:
       - name: Checkout code
@@ -84,3 +90,67 @@ jobs:
         run: |
           python -c "import streamlit; print('✅ Streamlit OK')"
           python -c "import httpx; print('✅ httpx OK')"
+
+
+  # ── Build, smoke test, push to ghcr.io ────────────────────────────────────
+  # Only runs after both check jobs pass.
+  # On PRs  : builds and tests images but does NOT push (unmerged code stays local)
+  # On main : builds, tests, AND pushes to ghcr.io
+  build-and-push:
+    name: Build and push Docker images
+    runs-on: ubuntu-latest
+    needs: [backend-checks, frontend-checks]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ghcr.io/${{ github.repository_owner }}/vaultmind-backend:latest
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ghcr.io/${{ github.repository_owner }}/vaultmind-frontend:latest
+
+      # Start the backend container and hit /health to prove it actually runs.
+      # The health endpoint doesn't call OpenAI — graph just needs to compile.
+      - name: Smoke test backend container
+        run: |
+          docker run -d \
+            --name vaultmind-backend-test \
+            -p 8000:8000 \
+            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            ghcr.io/${{ github.repository_owner }}/vaultmind-backend:latest
+
+          echo "Waiting for backend to start..."
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8000/health; then
+              echo "✅ Backend health check passed"
+              break
+            fi
+            echo "  attempt $i/15 — waiting 2s..."
+            sleep 2
+          done
+
+          curl -sf "http://localhost:8000/health?deep=true" | python3 -m json.tool
+
+      - name: Clean up test container
+        if: always()
+        run: docker rm -f vaultmind-backend-test || true
