@@ -1,7 +1,3 @@
-# .github/workflows/ci.yml
-#
-# VaultMind CI/CD — runs on every push and PR to main.
-#
 # Jobs:
 #   backend-checks   → verify pipeline + API imports (parallel)
 #   frontend-checks  → verify streamlit + httpx imports (parallel)
@@ -119,7 +115,7 @@ jobs:
           context: ./backend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           load: ${{ github.event_name == 'pull_request' }}
-          tags: ghcr.io/${{ github.repository_owner }}/vaultmind-backend:latest
+          tags: ghcr.io/devdoshi19/VaultMind-backend:latest
 
       - name: Build frontend image
         uses: docker/build-push-action@v5
@@ -127,17 +123,17 @@ jobs:
           context: ./frontend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           load: ${{ github.event_name == 'pull_request' }}
-          tags: ghcr.io/${{ github.repository_owner }}/vaultmind-frontend:latest
+          tags: ghcr.io/$devdoshi19/VaultMind-frontend:latest
 
       # Start the backend container and hit /health to prove it actually runs.
       # The health endpoint doesn't call OpenAI — graph just needs to compile.
       - name: Smoke test backend container
         run: |
           docker run -d \
-            --name vaultmind-backend-test \
+            --name VaultMind-backend-test \
             -p 8000:8000 \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            ghcr.io/${{ github.repository_owner }}/vaultmind-backend:latest
+            ghcr.io/devdoshi19/VaultMind-backend:latest
 
           echo "Waiting for backend to start..."
           for i in $(seq 1 15); do
@@ -153,4 +149,4 @@ jobs:
 
       - name: Clean up test container
         if: always()
-        run: docker rm -f vaultmind-backend-test || true
+        run: docker rm -f VaultMind-backend-test || true
