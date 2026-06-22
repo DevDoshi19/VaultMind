@@ -1,0 +1,22 @@
+# frontend/.dockerignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Secrets — not needed, frontend has no API keys
+.env
+
+# Git
+.git/
+.gitignore
+
+# Editor
+.vscode/
+.idea/

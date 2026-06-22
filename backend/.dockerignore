@@ -1,0 +1,33 @@
+# Python cache — at any depth
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+
+# ChromaDB and data — mounted as volumes
+chroma_db/
+data/
+
+# Git
+.git/
+.gitignore
+
+# Dev tools
+.pytest_cache/
+.ragas_eval_cache/
+**/*.egg-info/
+
+# Editor
+.vscode/
+.idea/
+
+# Learning notes
+_readme/
