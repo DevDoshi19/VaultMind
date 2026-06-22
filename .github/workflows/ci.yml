@@ -115,7 +115,7 @@ jobs:
           context: ./backend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           load: ${{ github.event_name == 'pull_request' }}
-          tags: ghcr.io/devdoshi19/VaultMind-backend:latest
+          tags: ghcr.io/devdoshi19/vaultmind-backend:latest
 
       - name: Build frontend image
         uses: docker/build-push-action@v5
@@ -123,7 +123,7 @@ jobs:
           context: ./frontend
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           load: ${{ github.event_name == 'pull_request' }}
-          tags: ghcr.io/$devdoshi19/VaultMind-frontend:latest
+          tags: ghcr.io/devdoshi19/vaultmind-frontend:latest
 
       # Start the backend container and hit /health to prove it actually runs.
       # The health endpoint doesn't call OpenAI — graph just needs to compile.
