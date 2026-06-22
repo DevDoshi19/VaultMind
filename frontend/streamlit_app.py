@@ -11,11 +11,12 @@ from textwrap import dedent
 
 import streamlit as st
 import httpx
+import os
 
 ASSETS_DIR = Path(__file__).parent / "assets"
 LOGO_PNG = ASSETS_DIR / "logo.png"
 LOGO_DATA_URI = f"data:image/png;base64,{b64encode(LOGO_PNG.read_bytes()).decode('ascii')}"
-BACKEND_URL = "http://127.0.0.1:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 # ----------------------------------------------------
 # PAGE CONFIG
 # ----------------------------------------------------
