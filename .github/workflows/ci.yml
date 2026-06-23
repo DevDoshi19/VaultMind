@@ -130,10 +130,10 @@ jobs:
       - name: Smoke test backend container
         run: |
           docker run -d \
-            --name VaultMind-backend-test \
+            --name vaultmind-backend-test \
             -p 8000:8000 \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            ghcr.io/devdoshi19/VaultMind-backend:latest
+            ghcr.io/devdoshi19/vaultmind-backend:latest
 
           echo "Waiting for backend to start..."
           for i in $(seq 1 15); do
@@ -149,4 +149,4 @@ jobs:
 
       - name: Clean up test container
         if: always()
-        run: docker rm -f VaultMind-backend-test || true
+        run: docker rm -f vaultmind-backend-test || true
