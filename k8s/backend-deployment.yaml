@@ -1,0 +1,85 @@
+# k8s/backend-deployment.yaml
+# A Deployment manages our backend pods.
+# It ensures the desired number of replicas is always running,
+# restarts crashed pods, and handles rolling updates when we push new images.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultmind-backend
+  namespace: vaultmind
+spec:
+  # 1 replica only — ChromaDB and chunks.json live on disk inside this pod.
+  # Running 2+ replicas would give each pod separate data copies.
+  # Phase 15 (Pinecone) removes this constraint by moving to a shared external vector DB.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vaultmind-backend
+  template:
+    metadata:
+      labels:
+        app: vaultmind-backend
+    spec:
+      containers:
+        - name: vaultmind-backend
+          image: ghcr.io/devdoshi19/vaultmind-backend:latest
+          ports:
+            - containerPort: 8000
+          imagePullPolicy: Always
+
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vaultmind-secret
+                  key: OPENAI_API_KEY
+            - name: LANGCHAIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vaultmind-secret
+                  key: LANGCHAIN_API_KEY
+
+          envFrom:
+            - configMapRef:
+                name: vaultmind-config
+
+          # Mount the PVC at two paths inside the container —
+          # same paths the app expects based on config.py.
+          # This replaces the Docker Compose volume mounts.
+          volumeMounts:
+            - name: backend-storage
+              mountPath: /app/chroma_db
+              subPath: chroma_db
+            - name: backend-storage
+              mountPath: /app/data
+              subPath: data
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+      # Declare the PVC as a volume the pod can use.
+      # Both volumeMounts above reference this single volume by name.
+      volumes:
+        - name: backend-storage
+          persistentVolumeClaim:
+            claimName: vaultmind-backend-pvc

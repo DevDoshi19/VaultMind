@@ -1,13 +1,7 @@
 """
-backend/api/middleware/rate_limit.py
- 
 Rate limiting for the VaultMind API.
 Protects the backend from abuse and runaway costs, every query hits OpenAI,
 so an unbounded API is a credit card risk, not just a performance risk.
- 
-Current strategy : 3 requests / minute / IP  (in-memory)
-Phase 15 upgrade : swap MemoryStorage → RedisStorage, everything else stays
-Phase 16 upgrade : swap IP key      → user_id from JWT, one line change
 """
 
 from slowapi import Limiter

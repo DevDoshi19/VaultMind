@@ -53,7 +53,6 @@ class QueryResponse(BaseModel):
     retrieval_status: str = ""
     retrieved_chunks: int = 0          # count only, not the raw text — keeps response small
 
-
 # -- Endpoint --
 @router.post(
     "/query",

@@ -1,0 +1,16 @@
+# k8s/backend-pvc.yaml
+# A PersistentVolumeClaim requests disk storage from the cluster.
+# minikube auto-provisions the actual volume behind this claim.
+# This gives ChromaDB a real persistent disk that survives pod restarts —
+# the same role that Docker Compose volumes played locally.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultmind-backend-pvc
+  namespace: vaultmind
+spec:
+  accessModes:
+    - ReadWriteOnce   # one pod can read/write at a time (fine since replicas=1)
+  resources:
+    requests:
+      storage: 1Gi    # 1GB is plenty for ChromaDB + chunks.json

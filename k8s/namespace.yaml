@@ -1,0 +1,8 @@
+# k8s/namespace.yaml
+# A namespace is a logical boundary inside the K8s cluster.
+# All VaultMind resources (pods, services, secrets) live here.
+# This keeps our stuff isolated from other apps on the same cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vaultmind

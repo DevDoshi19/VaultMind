@@ -8,7 +8,7 @@ from app.graph import build_graph
 from api.middleware.rate_limit import add_rate_limit_middleware
 from api.routes import health, query
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+# -- Logging --
 # One logger for the whole API layer.
 # Format: timestamp | level | logger name | message
 
@@ -21,7 +21,7 @@ logger = logging.getLogger("vaultmind.api")
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
-    # ── STARTUP ──
+    # -- STARTUP --
     logger.info("VaultMind backend starting up...")
     logger.info("Compiling LangGraph pipeline...")
  
@@ -32,7 +32,7 @@ async def lifespan(app:FastAPI):
  
     yield   # ← server runs here, handling requests
  
-    # ── SHUTDOWN ──
+    # -- SHUTDOWN --
     logger.info("VaultMind backend shutting down. Goodbye.")
 
 app = FastAPI(
@@ -60,11 +60,9 @@ app.add_middleware(
 )
 
 # rate limit middleware
-
 add_rate_limit_middleware(app)
 
 # Routers
-
 app.include_router(health.router, prefix="",tags=["Health"])
 app.include_router(query.router,  prefix="/api",tags=["Query"])
  

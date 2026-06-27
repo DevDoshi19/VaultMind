@@ -1,0 +1,58 @@
+# k8s/frontend-deployment.yaml
+# Manages the Streamlit frontend pod.
+# The frontend is stateless — it only calls the backend over HTTP.
+# No disk-bound state means this could scale to multiple replicas,
+# but 1 is enough for a personal project.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaultmind-frontend
+  namespace: vaultmind
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vaultmind-frontend
+  template:
+    metadata:
+      labels:
+        app: vaultmind-frontend
+    spec:
+      containers:
+        - name: vaultmind-frontend
+          image: ghcr.io/devdoshi19/vaultmind-frontend:latest
+          ports:
+            - containerPort: 8501
+          imagePullPolicy: Always
+
+          # BACKEND_URL comes from ConfigMap — "http://vaultmind-backend-service:8000"
+          # K8s internal DNS resolves this to the backend Service automatically.
+          # This is the K8s equivalent of Docker Compose's service name resolution.
+          envFrom:
+            - configMapRef:
+                name: vaultmind-config
+
+          # Readiness probe — wait for Streamlit to finish booting before sending traffic.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          # Liveness probe — restart the pod if Streamlit becomes unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8501
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "125m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"

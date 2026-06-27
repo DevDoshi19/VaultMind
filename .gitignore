@@ -13,3 +13,5 @@ data/chunks.json
 
 # Private readme folder
 _readme/
+
+k8s/secret.yaml
