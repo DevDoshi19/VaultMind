@@ -1,0 +1,19 @@
+# k8s/configmap.yaml
+# ConfigMap holds non-sensitive environment variables.
+# Unlike Secrets, these are plain text and safe to commit.
+# Pods reference this by name — if you change a value here,
+# you re-apply this file and restart the pods. No image rebuild needed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vaultmind-config
+  namespace: vaultmind
+data:
+  # LangSmith tracing config
+  LANGCHAIN_TRACING_V2: "true"
+  LANGCHAIN_PROJECT: "vaultmind"
+
+  # Frontend uses this to reach the backend inside the cluster.
+  # "vaultmind-backend-service" is the name of the backend Service we'll create next.
+  # K8s internal DNS resolves service names automatically within the same namespace.
+  BACKEND_URL: "http://vaultmind-backend-service:8000"

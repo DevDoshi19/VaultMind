@@ -1,0 +1,20 @@
+# k8s/backend-service.yaml
+# A Service gives the backend a stable internal DNS name.
+# Without this, the frontend would need the pod's IP — which changes on every restart.
+# ClusterIP means this service is only reachable from inside the cluster.
+# The frontend calls http://vaultmind-backend-service:8000 and K8s routes it here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vaultmind-backend-service
+  namespace: vaultmind
+spec:
+  type: ClusterIP
+  # selector tells the Service which pods to route traffic to.
+  # Must match the labels on the backend Deployment's pod template.
+  selector:
+    app: vaultmind-backend
+  ports:
+    - protocol: TCP
+      port: 8000        # port the Service exposes inside the cluster
+      targetPort: 8000  # port the container is actually listening on
