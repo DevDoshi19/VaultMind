@@ -10,6 +10,8 @@ chroma_db/
 # Private resume data
 data/resume.pdf
 data/chunks.json
+backend/data/resume.pdf
+backend/data/chunks.json
 
 # Private readme folder
 _readme/
