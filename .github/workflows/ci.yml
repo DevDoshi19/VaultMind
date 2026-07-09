@@ -51,7 +51,9 @@ jobs:
           python -c "from app.graph import build_graph; print('✅ Graph OK')"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+      
       - name: Verify API imports
         run: |
           python -c "from api.routes.health import router; print('✅ Health route OK')"
@@ -59,7 +61,8 @@ jobs:
           python -c "from api.main import app; print('✅ FastAPI app OK')"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
 
   # ── Frontend import checks ─────────────────────────────────────────────────
   frontend-checks:
@@ -133,6 +136,8 @@ jobs:
             --name vaultmind-backend-test \
             -p 8000:8000 \
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            -e PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }} \
+            -e LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }} \
             ghcr.io/devdoshi19/vaultmind-backend:latest
 
           echo "Waiting for backend to start..."
