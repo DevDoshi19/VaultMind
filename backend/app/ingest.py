@@ -1,10 +1,11 @@
 import json
 import os
 
-from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone
 from rich import print
 
 from app.config import settings
@@ -39,13 +40,25 @@ def ingest_resume() -> int:
         openai_api_key=settings.openai_api_key,
     )
 
-    Chroma.from_documents(
+    # Connect to Pinecone and clear existing vectors before re-ingesting.
+    # This prevents duplicate chunks building up across multiple ingest runs.
+
+    pc = Pinecone(api_key=settings.pinecone_api_key)
+    index = pc.Index(settings.pinecone_index_name)
+    stats = index.describe_index_stats()
+    if stats.total_vector_count > 0:
+        index.delete(delete_all=True)
+        print("   Pinecone namespace cleared")
+    else:
+        print("   Pinecone index is empty — skipping clear")
+        
+    PineconeVectorStore.from_documents(
         documents=chunks,
         embedding=embeddings,
-        collection_name=settings.chroma_collection_name,
-        persist_directory=settings.chroma_persist_dir,
+        index_name=settings.pinecone_index_name,
+        pinecone_api_key=settings.pinecone_api_key,
     )
-    print("   ChromaDB updated")
+    print("   Pinecone index updated")
 
     # Step 4 — Save raw chunks for BM25 (new)
     bm25_data = [

@@ -3,10 +3,9 @@ import json
 from rich.console import Console
 from rich import print
 
-from langchain_chroma import Chroma
-# from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
 from rank_bm25 import BM25Okapi
 
 from openai import APIError, RateLimitError
@@ -26,16 +25,17 @@ MAX_CONTEXT_TOKENS = 1000
 INPUT_PRICE_PER_TOKEN  = 0.150 / 1_000_000
 OUTPUT_PRICE_PER_TOKEN = 0.600 / 1_000_000
 
-def get_vectorstore() -> Chroma:
+def get_vectorstore() -> PineconeVectorStore:
+    # Pinecone is external and shared — unlike ChromaDB which was local disk.
+    # Any number of backend pods can query this simultaneously.
     embeddings = OpenAIEmbeddings(
         model=settings.embedding_model,
         openai_api_key=settings.openai_api_key,
     )
-
-    return Chroma(
-        collection_name=settings.chroma_collection_name,
-        embedding_function=embeddings,
-        persist_directory=settings.chroma_persist_dir,
+    return PineconeVectorStore(
+        index_name=settings.pinecone_index_name,
+        embedding=embeddings,
+        pinecone_api_key=settings.pinecone_api_key,
     )
 
 def load_bm25():
@@ -72,7 +72,7 @@ def retrieve_node(state: RAGState) -> RAGState:
 
     question = state["question"]
 
-    # ── Semantic Search ────────────────────────────────────
+    # -- Semantic Search --
     vectorstore = get_vectorstore()
     semantic_results = vectorstore.similarity_search_with_score(
         question,
@@ -83,11 +83,13 @@ def retrieve_node(state: RAGState) -> RAGState:
     for doc, score in semantic_results:
         console.print(f"   [dim]semantic score: {score:.4f} | {doc.page_content[:50]}[/dim]")
 
-    # filter by threshold
+    # Pinecone returns cosine similarity — higher = more relevant (opposite of ChromaDB L2).
+    # ChromaDB used score < 1.6 (L2 distance, lower = better).
+    # Pinecone uses score > 0.7 (cosine similarity, higher = better).
     semantic_docs = [
         doc.page_content
         for doc, score in semantic_results
-        if score < 1.6
+        if score > settings.similarity_threshold
     ]
 
     # ── BM25 Keyword Search ────────────────────────────────
