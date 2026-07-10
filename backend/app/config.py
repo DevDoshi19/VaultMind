@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     llm_timeout: float = 30.0
     max_llm_retries: int = 3
 
+    redis_url: str = "redis://localhost:6379"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

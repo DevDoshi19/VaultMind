@@ -2,58 +2,86 @@
 # Place this at the project root — VaultMind/docker-compose.yml
 #
 # Commands:
-#   docker compose up --build       → build images and start both containers
+#   docker compose up --build       → build images and start all containers
 #   docker compose up               → start with existing images (no rebuild)
 #   docker compose down             → stop and remove containers
-#   docker compose logs -f          → stream logs from both services
+#   docker compose logs -f          → stream logs from all services
 #   docker compose logs -f backend  → logs from backend only
 
 services:
 
-  # ── Backend ────────────────────────────────────────────────────────────────
+  # -- Redis --
+  redis:
+    image: redis:7-alpine          # same image your other projects use
+    container_name: vaultmind-redis
+
+    # Redis default port. Backend reaches it at redis://redis:6379
+    # "redis" is the service name — Docker DNS resolves it inside the network.
+    ports:
+      - "6380:6379"                # host 6380 to avoid conflict with other projects
+
+    # Redis data persists across restarts via this volume.
+    # Without it, cache is wiped every time the container restarts.
+    volumes:
+      - redis-data:/data
+
+    # appendonly yes — writes every operation to disk for durability.
+    # For a cache this is optional, but good practice.
+    command: redis-server --appendonly yes
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+    restart: unless-stopped
+    networks:
+      - vaultmind-network
+
+
+  # -- Backend --
   backend:
     build:
-      context: ./backend          # Docker sees everything inside backend/
-      dockerfile: Dockerfile      # uses backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
 
     container_name: vaultmind-backend
 
-    # Passes every variable from .env into the container at runtime.
-    # Secrets never baked into the image — they live only on your machine.
     env_file:
       - .env
 
-    # Publish port 8000 inside the container to port 8000 on your machine.
-    # Format: "host_port:container_port"
-    # Access the API at http://localhost:8000 from your browser or curl.
+    # REDIS_URL injected here — overrides anything in .env.
+    # Backend reaches Redis by service name "redis" inside Docker network.
+    environment:
+      - REDIS_URL=redis://redis:6379
+
     ports:
       - "8000:8000"
 
-    # Mount host directories into the container.
-    # chroma_db/ and data/ survive container restarts and rebuilds.
-    # Without volumes, every `docker compose down` wipes your vector store.
+    # Removed chroma_db volume — Pinecone is external, no local disk needed.
+    # Only data/ remains for chunks.json (BM25 still needs raw text).
     volumes:
-      - ./backend/chroma_db:/app/chroma_db   # vector store persists
-      - ./backend/data:/app/data             # resume.pdf + chunks.json
+      - ./backend/data:/app/data
 
-    # Docker checks this every 30s using the /health endpoint we built.
-    # unhealthy containers are visible in `docker compose ps`.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s             # grace period for graph compilation
+      start_period: 15s
 
-    # Always restart if the container crashes — except if you manually stop it.
+    # Wait for Redis to be healthy before starting backend.
+    depends_on:
+      redis:
+        condition: service_healthy
+
     restart: unless-stopped
-
-    # Connect to the shared private network.
     networks:
       - vaultmind-network
 
 
-  # ── Frontend ───────────────────────────────────────────────────────────────
+  # -- Frontend --
   frontend:
     build:
       context: ./frontend
@@ -61,19 +89,12 @@ services:
 
     container_name: vaultmind-frontend
 
-    # BACKEND_URL override — inside Docker, containers reach each other
-    # by service name, not localhost. "backend" is the service name above.
-    # This overrides whatever BACKEND_URL is set to in streamlit_app.py.
     environment:
       - BACKEND_URL=http://backend:8000
 
     ports:
       - "8501:8501"
 
-    # Don't start frontend until backend container is running.
-    # Note: "running" doesn't mean "healthy" — just that the process started.
-    # For strict ordering (wait for /health to pass), you'd use a wait script.
-    # This is sufficient for development.
     depends_on:
       - backend
 
@@ -85,14 +106,16 @@ services:
       start_period: 10s
 
     restart: unless-stopped
-
     networks:
       - vaultmind-network
 
 
-# ── Network ────────────────────────────────────────────────────────────────
-# bridge is the default driver — creates a private network between containers.
-# Both services are on this network so frontend can call backend by service name.
+# -- Network --
 networks:
   vaultmind-network:
     driver: bridge
+
+# -- Volumes --
+# Named volume for Redis persistence — managed by Docker, not a host folder.
+volumes:
+  redis-data:
