@@ -37,3 +37,5 @@ slowapi
 scalar_fastapi
 
 redis
+
+motor

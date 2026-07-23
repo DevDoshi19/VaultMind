@@ -5,11 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from scalar_fastapi import get_scalar_api_reference
 
 from app.graph import build_graph
+from app.db.mongo import connect_to_mongo, close_mongo_connection, ping_mongo
 from api.middleware.rate_limit import add_rate_limit_middleware
 from api.routes import health, query
 
 # -- Logging --
-# One logger for the whole API layer.
+# One logger for the whole API layer. help in debugging and tracing requests across modules.
 # Format: timestamp | level | logger name | message
 
 logging.basicConfig(
@@ -20,21 +21,32 @@ logging.basicConfig(
 logger = logging.getLogger("vaultmind.api")
 
 @asynccontextmanager
-async def lifespan(app:FastAPI):
+async def lifespan(app: FastAPI):
     # -- STARTUP --
     logger.info("VaultMind backend starting up...")
     logger.info("Compiling LangGraph pipeline...")
- 
-    app.state.graph = build_graph()         # compiled once, reused forever
- 
-    logger.info("LangGraph pipeline ready.")
-    logger.info("Backend is live — waiting for requests.")
- 
-    yield   # ← server runs here, handling requests
- 
-    # -- SHUTDOWN --
-    logger.info("VaultMind backend shutting down. Goodbye.")
 
+    app.state.graph = build_graph()         # compiled once, reused forever
+
+    logger.info("LangGraph pipeline ready.")
+
+    logger.info("Connecting to MongoDB...")
+    app.state.mongo_client = connect_to_mongo()
+
+    if await ping_mongo():
+        logger.info("MongoDB connection verified.")
+    else:
+        logger.warning("MongoDB ping failed — check MONGO_URI and Atlas network access.")
+
+    logger.info("Backend is live — waiting for requests.")
+
+    yield   # ← server runs here, handling requests
+
+    # -- SHUTDOWN --
+    logger.info("Closing MongoDB connection...")
+    close_mongo_connection()
+    logger.info("VaultMind backend shutting down. Goodbye.")
+    
 app = FastAPI(
     title="VaultMind API",
     description="Production RAG backend for Dev Doshi's resume intelligence system.",
@@ -76,6 +88,8 @@ Responsibilities:
   - Compile the LangGraph graph once at startup (lifespan)
   - Add CORS middleware so Streamlit / React can call us
   - Mount all routers (health, query)
+
+Main entrypoint for the backend service is `uvicorn backend.api.main:app --reload` (dev) or `uvicorn backend.api.main:app --host 0.0.0.0 --port 8000` (prod)
 """
 
 @app.get("/scalar", include_in_schema=False)

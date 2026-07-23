@@ -35,6 +35,9 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379"
 
+    mongo_uri: str
+    mongo_db_name: str = "vaultmind"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
