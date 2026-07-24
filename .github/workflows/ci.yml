@@ -53,6 +53,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
           LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
       
       - name: Verify API imports
         run: |
@@ -63,8 +64,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
           LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
 
-  # ── Frontend import checks ─────────────────────────────────────────────────
+  # -- Frontend import checks --
   frontend-checks:
     name: Frontend checks
     runs-on: ubuntu-latest
@@ -138,6 +140,7 @@ jobs:
             -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
             -e PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }} \
             -e LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }} \
+            -e MONGO_URI=${{ secrets.MONGO_URI }} \
             ghcr.io/devdoshi19/vaultmind-backend:latest
 
           echo "Waiting for backend to start..."
