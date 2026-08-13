@@ -35,3 +35,7 @@ python-jose
 pyjwt
 slowapi
 scalar_fastapi
+
+redis
+
+motor

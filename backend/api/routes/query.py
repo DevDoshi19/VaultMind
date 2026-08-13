@@ -4,21 +4,30 @@ backend/api/routes/query.py
 POST /api/query  — the main endpoint.
 Receives a question, runs the LangGraph pipeline, returns structured JSON.
 
+Redis caching added in Phase 15b:
+  - Cache key: md5(question.lower().strip())
+  - Cache hit: return cached response instantly, zero LLM calls
+  - Cache miss: run full pipeline, store result with 24hr TTL
+  - Redis failure: log warning and fall through to pipeline (never crash)
+
 Protected by:
   - SlowAPI rate limit  : 3 requests / minute / IP
   - Input validation    : Pydantic rejects malformed requests before they hit the pipeline
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 
+import redis
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from langchain_core.tracers.context import tracing_v2_enabled
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.state import RAGState
-# from api.middleware.rate_limit import limiter
 
 logger = logging.getLogger("vaultmind.api.query")
 
@@ -26,10 +35,6 @@ router = APIRouter()
 
 
 # -- Request model --
-# Pydantic validates this before your handler runs.
-# `min_length=1` rejects empty strings — no need to check manually.
-# `max_length=500` prevents abuse — nobody needs a 5000-character resume question.
-# `Field(...)` lets you add metadata that shows up in /docs.
 class QueryRequest(BaseModel):
     question: str = Field(
         ...,
@@ -41,8 +46,6 @@ class QueryRequest(BaseModel):
 
 
 # -- Response model --
-# Every field the frontend might need.
-# `None` defaults mean the field is optional — blocked queries won't have confidence scores.
 class QueryResponse(BaseModel):
     answer: str
     confidence_score: float | None = None
@@ -51,7 +54,54 @@ class QueryResponse(BaseModel):
     total_tokens: int = 0
     estimated_cost: float = 0.0
     retrieval_status: str = ""
-    retrieved_chunks: int = 0          # count only, not the raw text — keeps response small
+    retrieved_chunks: int = 0
+    cached: bool = False           
+
+
+# -- Cache helpers --
+def _cache_key(question: str) -> str:
+    # Normalize the question before hashing so "What are his skills?"
+    # and "what are his skills?" hit the same cache entry.
+    normalized = question.lower().strip()
+    return f"vaultmind:query:{hashlib.md5(normalized.encode()).hexdigest()}"
+
+
+def _get_redis_client():
+    # We create a fresh client per request — Redis client is lightweight.
+    # In Phase 16 we'll move this to a connection pool on app.state.
+    return redis.from_url(settings.redis_url, decode_responses=True)
+
+
+def _get_cached_response(question: str) -> dict | None:
+    # Returns cached response dict if found, None on miss or Redis failure.
+    # Redis failure is non-fatal — we always fall through to the pipeline.
+    try:
+        client = _get_redis_client()
+        key = _cache_key(question)
+        cached = client.get(key)
+        if cached:
+            logger.info(f"⚡ Cache hit for question: '{question[:50]}'")
+            return json.loads(cached)
+    except Exception as e:
+        logger.warning(f"Redis get failed — falling through to pipeline: {e}")
+    return None
+
+
+def _set_cached_response(question: str, response: dict) -> None:
+    # Stores response in Redis with 24hr TTL.
+    # Failure is non-fatal — cache miss on next request is acceptable.
+    try:
+        client = _get_redis_client()
+        key = _cache_key(question)
+        client.setex(
+            name=key,
+            time=86400,            # 24 hours in seconds
+            value=json.dumps(response),
+        )
+        logger.info(f"Cached response for question: '{question[:50]}'")
+    except Exception as e:
+        logger.warning(f"Redis set failed — response not cached: {e}")
+
 
 # -- Endpoint --
 @router.post(
@@ -61,13 +111,26 @@ class QueryResponse(BaseModel):
     description="Send a natural language question. Returns an answer grounded in Dev Doshi's resume.",
     status_code=status.HTTP_200_OK,
 )
-# @limiter.limit("10/minute")            # SlowAPI checks IP counter before handler runs
 async def query_endpoint(request: Request, body: QueryRequest) -> JSONResponse:
 
-    logger.info(f"Query received: '{body.question[:60]}...' " if len(body.question) > 60 else f"Query received: '{body.question}'")
+    logger.info(
+        f"Query received: '{body.question[:60]}...'"
+        if len(body.question) > 60
+        else f"Query received: '{body.question}'"
+    )
+
+    # -- Cache check --
+    # Check Redis before touching the pipeline.
+    # Cache hit = instant response, zero OpenAI calls, zero cost.
+    cached = _get_cached_response(body.question)
+    if cached:
+        cached["cached"] = True
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=cached,
+        )
 
     # -- Build initial LangGraph state --
-    # Same structure as main.py / streamlit_app.py — nothing changes here.
     initial_state: RAGState = {
         "question": body.question,
         "question_is_relevant": False,
@@ -84,24 +147,18 @@ async def query_endpoint(request: Request, body: QueryRequest) -> JSONResponse:
         "output_flagged": False,
     }
 
-    # -- Get the compiled graph from app state --
-    # Set once at startup by lifespan in main.py — never recompiled per request.
     graph = request.app.state.graph
 
-    # -- Run LangGraph in a thread pool --
-    # graph.invoke() is synchronous and blocks for 3-5 seconds while nodes execute.
-    # Calling it directly inside `async def` would freeze the entire FastAPI event loop —
-    # no other requests could be processed until this one finishes.
-    # run_in_executor offloads it to a background thread, keeping the event loop free.
+    # -- Run LangGraph pipeline --
     with tracing_v2_enabled(project_name="vaultmind"):
         result: RAGState = await asyncio.get_event_loop().run_in_executor(
-            None,           # None = use Python's default ThreadPoolExecutor
+            None,
             lambda: graph.invoke(
                 initial_state,
                 config={
                     "run_name": f"VaultMind | {body.question[:50]}",
                     "tags": ["production", "resume-rag", "fastapi"],
-                    "metadata": {"phase": "12", "retrieval": "hybrid", "llm": "gpt-4o-mini"},
+                    "metadata": {"phase": "15b", "retrieval": "hybrid", "llm": "gpt-4o-mini"},
                 },
             ),
         )
@@ -113,18 +170,25 @@ async def query_endpoint(request: Request, body: QueryRequest) -> JSONResponse:
     )
 
     # -- Build response --
-    # We don't send raw retrieved_docs to the frontend — those can be large.
-    # Instead we send the count. Frontend can request chunks separately if needed (Phase 16).
+    response = QueryResponse(
+        answer=result.get("answer", ""),
+        confidence_score=result.get("confidence_score"),
+        input_blocked=result.get("input_blocked", False),
+        output_flagged=result.get("output_flagged", False),
+        total_tokens=result.get("total_tokens", 0),
+        estimated_cost=result.get("estimated_cost", 0.0),
+        retrieval_status=result.get("retrieval_status", ""),
+        retrieved_chunks=len(result.get("retrieved_docs", [])),
+        cached=False,
+    ).model_dump()
+
+    # -- Store in cache --
+    # Only cache successful, non-blocked responses.
+    # Blocked queries are cheap (no retrieval) so caching them isn't worth it.
+    if not result.get("input_blocked", False):
+        _set_cached_response(body.question, response)
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=QueryResponse(
-            answer=result.get("answer", ""),
-            confidence_score=result.get("confidence_score"),
-            input_blocked=result.get("input_blocked", False),
-            output_flagged=result.get("output_flagged", False),
-            total_tokens=result.get("total_tokens", 0),
-            estimated_cost=result.get("estimated_cost", 0.0),
-            retrieval_status=result.get("retrieval_status", ""),
-            retrieved_chunks=len(result.get("retrieved_docs", [])),
-        ).model_dump(),
+        content=response,
     )
